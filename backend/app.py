@@ -8,6 +8,9 @@ from flask_cors import CORS
 from database import db
 from parser import parse_resume
 from analyzer import analyze_resume_content, match_job_description
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
+
 
 app = Flask(__name__)
 # Enable CORS for React frontend running locally
@@ -139,6 +142,68 @@ def login():
             "email": user["email"]
         }
     }), 200
+
+@app.route('/api/auth/google', methods=['POST'])
+def google_login():
+    data = request.get_json() or {}
+    token = data.get('id_token')
+    
+    if not token:
+        return jsonify({"message": "Google ID token is required."}), 400
+        
+    try:
+        # Verify Firebase ID token
+        firebase_project_id = os.environ.get("FIREBASE_PROJECT_ID")
+        
+        # Verify the ID token against Google's certificates
+        decoded_token = id_token.verify_oauth2_token(
+            token, 
+            google_requests.Request(),
+            audience=firebase_project_id
+        )
+        
+        # Verify issuer is Firebase (securetoken.google.com/<projectId>)
+        iss = decoded_token.get('iss')
+        if not iss or not iss.startswith("https://securetoken.google.com/"):
+            raise ValueError("Invalid token issuer")
+            
+        email = decoded_token.get('email', '').strip().lower()
+        name = decoded_token.get('name', 'Google User').strip()
+        
+        if not email:
+            return jsonify({"message": "Email address not provided in Google profile."}), 400
+            
+        # Check if user already exists in database
+        user = db.get_user_by_email(email)
+        if not user:
+            # Auto-register Google user
+            user = db.create_user(name, email, "")
+            if not user:
+                return jsonify({"message": "Failed to register new Google account."}), 500
+                
+        # Generate our session token (JWT)
+        payload = {
+            "user_id": user["user_id"],
+            "email": user["email"],
+            "exp": datetime.datetime.utcnow() + datetime.timedelta(days=7)
+        }
+        session_token = jwt.encode(payload, SECRET_KEY, algorithm="HS256")
+        if isinstance(session_token, bytes):
+            session_token = session_token.decode('utf-8')
+            
+        return jsonify({
+            "message": "Logged in successfully with Google",
+            "token": session_token,
+            "user": {
+                "user_id": user["user_id"],
+                "name": user["name"],
+                "email": user["email"]
+            }
+        }), 200
+        
+    except Exception as e:
+        print(f"Google authentication error: {e}")
+        return jsonify({"message": f"Google authentication failed: {str(e)}"}), 401
 
 # Resume Upload & Analysis Routes
 @app.route('/api/resume/upload', methods=['POST'])
