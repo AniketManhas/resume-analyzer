@@ -42,7 +42,7 @@ export default function Auth({ onAuthSuccess, isDark, onToggleTheme }) {
       // Call parent success trigger
       onAuthSuccess(data.user, data.token);
     } catch (err) {
-      setError(err.message);
+      setError(`Failed to connect to backend at: ${API_URL}${endpoint}. Details: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -79,7 +79,7 @@ export default function Auth({ onAuthSuccess, isDark, onToggleTheme }) {
         }
       } catch (err) {
         console.error("Redirect auth error:", err);
-        setError(err.message);
+        setError(`Failed to connect to backend at: ${API_URL}/auth/google. Details: ${err.message}`);
       } finally {
         setLoading(false);
       }
