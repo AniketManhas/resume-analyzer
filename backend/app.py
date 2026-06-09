@@ -1,7 +1,10 @@
 import os
+import dotenv
+dotenv.load_dotenv()
 import datetime
 import jwt
 import bcrypt
+
 from functools import wraps
 from flask import Flask, request, jsonify
 from flask_cors import CORS
