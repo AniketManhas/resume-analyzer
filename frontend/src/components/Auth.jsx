@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Mail, Lock, User, ArrowRight, ShieldCheck, Sun, Moon } from 'lucide-react';
-import { signInWithPopup } from 'firebase/auth';
+import { signInWithRedirect, getRedirectResult } from 'firebase/auth';
 import { auth, googleProvider } from '../firebase';
+
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
@@ -47,41 +48,52 @@ export default function Auth({ onAuthSuccess, isDark, onToggleTheme }) {
     }
   };
 
+  // Handle Firebase Sign-In Redirect Results on page load
+  useEffect(() => {
+    const handleRedirectResult = async () => {
+      try {
+        const result = await getRedirectResult(auth);
+        if (result) {
+          setLoading(true);
+          setError('');
+          const token = await result.user.getIdToken();
+
+          const response = await fetch(`${API_URL}/auth/google`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id_token: token })
+          });
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.message || 'Google authentication failed.');
+          }
+
+          // Store JWT token and user info
+          localStorage.setItem('resume_analyzer_token', data.token);
+          localStorage.setItem('resume_analyzer_user', JSON.stringify(data.user));
+
+          // Call parent success trigger
+          onAuthSuccess(data.user, data.token);
+        }
+      } catch (err) {
+        console.error("Redirect auth error:", err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    handleRedirectResult();
+  }, [onAuthSuccess]);
+
   const handleGoogleSignIn = async () => {
     setError('');
     setLoading(true);
     try {
-      const result = await signInWithPopup(auth, googleProvider);
-      const token = await result.user.getIdToken();
-
-      const response = await fetch(`${API_URL}/auth/google`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id_token: token })
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || 'Google authentication failed.');
-      }
-
-      // Store JWT token and user info
-      localStorage.setItem('resume_analyzer_token', data.token);
-      localStorage.setItem('resume_analyzer_user', JSON.stringify(data.user));
-
-      // Call parent success trigger
-      onAuthSuccess(data.user, data.token);
+      await signInWithRedirect(auth, googleProvider);
     } catch (err) {
-      // Clean up common Firebase Auth popup closure errors for better UX
-      if (err.code === 'auth/popup-closed-by-user') {
-        setError('Google sign-in popup was closed before completing. Please try again.');
-      } else if (err.code === 'auth/popup-blocked') {
-        setError('Google login popup was blocked by your browser. Please click the popup icon in your address bar to allow popups for this site and try again!');
-      } else {
-        setError(err.message);
-      }
-    } finally {
+      setError(err.message);
       setLoading(false);
     }
   };
