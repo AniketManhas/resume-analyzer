@@ -76,6 +76,8 @@ export default function Auth({ onAuthSuccess, isDark, onToggleTheme }) {
       // Clean up common Firebase Auth popup closure errors for better UX
       if (err.code === 'auth/popup-closed-by-user') {
         setError('Google sign-in popup was closed before completing. Please try again.');
+      } else if (err.code === 'auth/popup-blocked') {
+        setError('Google login popup was blocked by your browser. Please click the popup icon in your address bar to allow popups for this site and try again!');
       } else {
         setError(err.message);
       }
