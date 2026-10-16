@@ -2,64 +2,124 @@ import re
 import math
 from collections import Counter
 
-# Rich dictionary of tech skills mapped by category
-SKILL_CATEGORIES = {
-    "Programming Languages": ["python", "java", "c\\+\\+", "c#", "javascript", "typescript", "php", "ruby", "go", "golang", "swift", "kotlin", "rust", "sql"],
-    "Frontend Development": ["react", "angular", "vue", "next\\.js", "nextjs", "nuxt", "html", "css", "sass", "bootstrap", "tailwind", "jquery", "flutter", "svelte"],
-    "Backend Development": ["node\\.js", "nodejs", "express", "django", "flask", "spring boot", "springboot", "asp\\.net", "fastapi", "laravel", "graphql", "nest\\.js", "nestjs"],
-    "Database & Storage": ["mysql", "postgresql", "postgres", "mongodb", "redis", "sqlite", "oracle", "mariadb", "cassandra", "firebase", "dynamodb"],
-    "Cloud & DevOps": ["aws", "azure", "gcp", "docker", "kubernetes", "jenkins", "git", "github", "gitlab", "ci/cd", "terraform", "linux", "ansible"],
-    "AI & Data Science": ["machine learning", "deep learning", "nlp", "natural language processing", "tensorflow", "pytorch", "keras", "scikit-learn", "pandas", "numpy", "matplotlib", "seaborn", "computer vision", "opencv"]
+# Rich dictionary of tech skills mapped by category with canonical display names and aliases
+SKILL_DEFINITIONS = {
+    "Programming Languages": [
+        ("Python", ["python"]),
+        ("Java", ["java"]),
+        ("C++", ["c++"]),
+        ("C#", ["c#"]),
+        ("JavaScript", ["javascript", "js"]),
+        ("TypeScript", ["typescript", "ts"]),
+        ("PHP", ["php"]),
+        ("Ruby", ["ruby"]),
+        ("Go", ["golang", "go"]),
+        ("Swift", ["swift"]),
+        ("Kotlin", ["kotlin"]),
+        ("Rust", ["rust"]),
+        ("SQL", ["sql"]),
+    ],
+    "Frontend Development": [
+        ("React", ["react", "react.js", "reactjs"]),
+        ("Angular", ["angular", "angular.js", "angularjs"]),
+        ("Vue", ["vue", "vue.js", "vuejs"]),
+        ("Next.js", ["next.js", "nextjs"]),
+        ("Nuxt.js", ["nuxt", "nuxt.js", "nuxtjs"]),
+        ("HTML", ["html", "html5"]),
+        ("CSS", ["css", "css3"]),
+        ("Sass", ["sass", "scss"]),
+        ("Bootstrap", ["bootstrap"]),
+        ("Tailwind", ["tailwind", "tailwindcss"]),
+        ("jQuery", ["jquery"]),
+        ("Flutter", ["flutter"]),
+        ("Svelte", ["svelte"]),
+    ],
+    "Backend Development": [
+        ("Node.js", ["node.js", "nodejs"]),
+        ("Express", ["express", "express.js", "expressjs"]),
+        ("Django", ["django"]),
+        ("Flask", ["flask"]),
+        ("Spring Boot", ["spring boot", "springboot"]),
+        ("ASP.NET", ["asp.net", "aspnet"]),
+        ("FastAPI", ["fastapi"]),
+        ("Laravel", ["laravel"]),
+        ("GraphQL", ["graphql"]),
+        ("Nest.js", ["nest.js", "nestjs"]),
+    ],
+    "Database & Storage": [
+        ("MySQL", ["mysql"]),
+        ("PostgreSQL", ["postgresql", "postgres"]),
+        ("MongoDB", ["mongodb", "mongo"]),
+        ("Redis", ["redis"]),
+        ("SQLite", ["sqlite"]),
+        ("Oracle", ["oracle"]),
+        ("MariaDB", ["mariadb"]),
+        ("Cassandra", ["cassandra"]),
+        ("Firebase", ["firebase"]),
+        ("DynamoDB", ["dynamodb"]),
+    ],
+    "Cloud & DevOps": [
+        ("AWS", ["aws", "amazon web services"]),
+        ("Azure", ["azure", "microsoft azure"]),
+        ("GCP", ["gcp", "google cloud"]),
+        ("Docker", ["docker"]),
+        ("Kubernetes", ["kubernetes", "k8s"]),
+        ("Jenkins", ["jenkins"]),
+        ("Git", ["git"]),
+        ("GitHub", ["github"]),
+        ("GitLab", ["gitlab"]),
+        ("CI/CD", ["ci/cd", "cicd"]),
+        ("Terraform", ["terraform"]),
+        ("Linux", ["linux"]),
+        ("Ansible", ["ansible"]),
+    ],
+    "AI & Data Science": [
+        ("Machine Learning", ["machine learning"]),
+        ("Deep Learning", ["deep learning"]),
+        ("NLP", ["nlp", "natural language processing"]),
+        ("TensorFlow", ["tensorflow"]),
+        ("PyTorch", ["pytorch"]),
+        ("Keras", ["keras"]),
+        ("Scikit-Learn", ["scikit-learn", "sklearn"]),
+        ("Pandas", ["pandas"]),
+        ("NumPy", ["numpy"]),
+        ("Matplotlib", ["matplotlib"]),
+        ("Seaborn", ["seaborn"]),
+        ("Computer Vision", ["computer vision"]),
+        ("OpenCV", ["opencv"]),
+    ]
 }
 
-# Compile regex patterns for fast skill matching
-SKILL_PATTERNS = {}
-for category, skills in SKILL_CATEGORIES.items():
-    patterns = []
-    for skill in skills:
-        # If the skill contains special characters (like c++, node.js, .net), match it carefully
-        if re.search(r'[^a-zA-Z0-9]', skill):
-            escaped = re.escape(skill)
-            # Match boundary or whitespace
-            patterns.append((skill, re.compile(rf'(?:^|[\s,;:\.\|]){escaped}(?:$|[\s,;:\.\|])', re.IGNORECASE)))
-        else:
-            patterns.append((skill, re.compile(rf'\b{skill}\b', re.IGNORECASE)))
-    SKILL_PATTERNS[category] = patterns
+# Pre-compile regex patterns for fast, robust matching
+COMPILED_SKILLS = []
+for category, skill_list in SKILL_DEFINITIONS.items():
+    for display_name, aliases in skill_list:
+        # Sort aliases by length descending so multi-word variants match before single words
+        sorted_aliases = sorted(aliases, key=len, reverse=True)
+        alias_patterns = []
+        for a in sorted_aliases:
+            if a.startswith('.'):
+                alias_patterns.append(rf'(?<![a-zA-Z0-9]){re.escape(a)}(?![a-zA-Z0-9])')
+            else:
+                # Prevent matching extensions or emails (e.g., Next.js matching standalone js)
+                alias_patterns.append(rf'(?<![a-zA-Z0-9\.@]){re.escape(a)}(?![a-zA-Z0-9])')
+        combined_pattern = re.compile('|'.join(alias_patterns), re.IGNORECASE)
+        COMPILED_SKILLS.append((category, display_name, combined_pattern))
+
+# Backwards compatibility mapping
+SKILL_CATEGORIES = {
+    category: [display_name for display_name, _ in skill_list]
+    for category, skill_list in SKILL_DEFINITIONS.items()
+}
 
 def extract_skills(text):
-    found_skills = {}
+    found_skills = {cat: [] for cat in SKILL_DEFINITIONS}
     found_flat = []
-    for category, patterns in SKILL_PATTERNS.items():
-        found_skills[category] = []
-        for raw_name, pattern in patterns:
-            # Format raw name for display (e.g. c\+\+ -> C++, next\.js -> Next.js)
-            display_name = raw_name.replace('\\+', '+').replace('\\.', '.').title()
-            if display_name.lower() == 'sql':
-                display_name = 'SQL'
-            elif display_name.lower() == 'html':
-                display_name = 'HTML'
-            elif display_name.lower() == 'css':
-                display_name = 'CSS'
-            elif display_name.lower() == 'gcp':
-                display_name = 'GCP'
-            elif display_name.lower() == 'aws':
-                display_name = 'AWS'
-            elif display_name.lower() == 'nlp':
-                display_name = 'NLP'
-            elif display_name.lower() == 'ci/cd':
-                display_name = 'CI/CD'
-            elif display_name.lower() == 'nextjs':
-                display_name = 'Next.js'
-            elif display_name.lower() == 'nodejs':
-                display_name = 'Node.js'
-            elif display_name.lower() == 'springboot':
-                display_name = 'Spring Boot'
-                
-            if pattern.search(text):
-                # Avoid duplicates
-                if display_name not in found_skills[category]:
-                    found_skills[category].append(display_name)
-                    found_flat.append(display_name)
+    for category, display_name, pattern in COMPILED_SKILLS:
+        if pattern.search(text):
+            if display_name not in found_skills[category]:
+                found_skills[category].append(display_name)
+                found_flat.append(display_name)
     return found_skills, found_flat
 
 def calculate_resume_score(text, skills_flat):
@@ -263,8 +323,9 @@ def get_suggestions(resume_score, ats_score, text, skills_flat, email, phone):
     if action_count < 3:
         suggestions.append("Use strong action verbs (e.g., 'Optimized', 'Engineered', 'Spearheaded') at the beginning of bullet points.")
         
-    # Check for quantitative indicators (numbers/percentages)
-    has_metrics = bool(re.search(r'\b(?:\d+%|\d+\s*hours|\$\d+|\d+\+)\b', text))
+    # Check for quantitative indicators (numbers/percentages/scale/time)
+    metrics_pattern = r'(?:\d+(?:\.\d+)?%|\b\d+(?:\.\d+)?\s*(?:hours?|hrs?|seconds?|secs?|s|ms|minutes?|mins?|days?|weeks?|months?)\b|[\$\€\£\₹]\s*\d+|\b\d+\s*[kKmMbB]\+?\b|\b\d+\+(?!\w)|\b\d+x\b|\b(?:increased|reduced|improved|decreased|cut|boosted|saved|grew)\b[^\.\n;]{1,40}?\b\d+)'
+    has_metrics = bool(re.search(metrics_pattern, text, re.IGNORECASE))
     if not has_metrics:
         suggestions.append("Incorporate measurable metrics (e.g., 'increased efficiency by 15%', 'reduced page-load by 2s') to quantify impact.")
         

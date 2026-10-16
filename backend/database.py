@@ -13,18 +13,22 @@ class DatabaseAdapter:
         self.mongo_db = None
         self.sqlite_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resume_analyzer.db")
         
-        # Read Mongo URI
-        mongo_uri = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
-        try:
-            # Try to connect with a short timeout so it doesn't hang the app start
-            self.mongo_client = MongoClient(mongo_uri, serverSelectionTimeoutMS=2000)
-            # Trigger server connection check
-            self.mongo_client.server_info()
-            self.mongo_db = self.mongo_client["resume_analyzer"]
-            self.use_mongodb = True
-            print("Successfully connected to MongoDB.")
-        except Exception as e:
-            print(f"MongoDB connection failed: {e}. Falling back to SQLite database at {self.sqlite_path}")
+        # Read Mongo URI (from .env)
+        mongo_uri = os.environ.get("MONGO_URI")
+        if mongo_uri:
+            try:
+                # 5s timeout for cloud Atlas TLS connection
+                self.mongo_client = MongoClient(mongo_uri, serverSelectionTimeoutMS=5000)
+                # Verify server connection
+                self.mongo_client.server_info()
+                self.mongo_db = self.mongo_client.get_database("resume_analyzer")
+                self.use_mongodb = True
+                print("Successfully connected to MongoDB Atlas.")
+            except Exception as e:
+                print(f"MongoDB connection failed: {e}. Falling back to SQLite database at {self.sqlite_path}")
+                self.use_mongodb = False
+                self._init_sqlite()
+        else:
             self.use_mongodb = False
             self._init_sqlite()
             

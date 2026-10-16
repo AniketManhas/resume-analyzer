@@ -77,6 +77,8 @@ def register():
     # Check if user already exists
     existing_user = db.get_user_by_email(email)
     if existing_user:
+        if not existing_user.get("password_hash"):
+            return jsonify({"message": "An account with this email already exists via Google Sign-In. Please sign in with Google."}), 400
         return jsonify({"message": "An account with this email already exists."}), 400
         
     # Hash password
@@ -123,7 +125,13 @@ def login():
         
     # Verify password
     hashed = user.get("password_hash", "")
-    if not bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8')):
+    if not hashed:
+        return jsonify({"message": "This account was registered with Google. Please use Google Sign-In."}), 400
+
+    try:
+        if not bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8')):
+            return jsonify({"message": "Invalid email or password."}), 401
+    except Exception:
         return jsonify({"message": "Invalid email or password."}), 401
         
     # Generate Token
@@ -158,8 +166,8 @@ def google_login():
         # Verify Firebase ID token
         firebase_project_id = os.environ.get("FIREBASE_PROJECT_ID")
         
-        # Verify the ID token against Google's certificates
-        decoded_token = id_token.verify_oauth2_token(
+        # Verify the ID token against Firebase's certificates
+        decoded_token = id_token.verify_firebase_token(
             token, 
             google_requests.Request(),
             audience=firebase_project_id
