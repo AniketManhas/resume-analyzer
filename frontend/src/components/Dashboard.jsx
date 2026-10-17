@@ -206,8 +206,9 @@ function getTopInsight(analysis) {
 /* ═══════════════════════════════════════
    MAIN DASHBOARD
    ═══════════════════════════════════════ */
-export default function Dashboard({ user, token, onLogout, isDark, onToggleTheme }) {
+export default function Dashboard({ user, token, onLogout, isDark, onToggleTheme, onOpenAuth }) {
   const [history, setHistory] = useState([]);
+  const [guestHistory, setGuestHistory] = useState([]);
   const [activeAnalysis, setActiveAnalysis] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
@@ -225,10 +226,13 @@ export default function Dashboard({ user, token, onLogout, isDark, onToggleTheme
 
   // Fetch History on Load
   useEffect(() => {
-    fetchHistory();
+    if (token) {
+      fetchHistory();
+    }
   }, [token]);
 
   const fetchHistory = async () => {
+    if (!token) return;
     try {
       const response = await fetch(`${API_URL}/dashboard/history`, {
         headers: { 'Authorization': `Bearer ${token}` }
@@ -249,6 +253,17 @@ export default function Dashboard({ user, token, onLogout, isDark, onToggleTheme
   const handleDeleteResume = async (e, resumeId) => {
     e.stopPropagation();
     if (!window.confirm('Delete this resume analysis from history?')) return;
+
+    if (!token) {
+      const remaining = guestHistory.filter(item => item.resume_id !== resumeId);
+      setGuestHistory(remaining);
+      if (activeAnalysis?.resume_id === resumeId) {
+        setActiveAnalysis(remaining.length > 0 ? remaining[0] : null);
+        setJdResult(null);
+        setJdText('');
+      }
+      return;
+    }
 
     try {
       const response = await fetch(`${API_URL}/resume/${resumeId}`, {
@@ -292,10 +307,15 @@ export default function Dashboard({ user, token, onLogout, isDark, onToggleTheme
     const formData = new FormData();
     formData.append('file', file);
 
+    const headers = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     try {
       const response = await fetch(`${API_URL}/resume/upload`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
+        headers,
         body: formData
       });
 
@@ -303,7 +323,11 @@ export default function Dashboard({ user, token, onLogout, isDark, onToggleTheme
       if (!response.ok) throw new Error(data.message || 'Analysis failed');
 
       setActiveAnalysis(data.data);
-      await fetchHistory();
+      if (token) {
+        await fetchHistory();
+      } else {
+        setGuestHistory(prev => [data.data, ...prev.filter(item => item.resume_id !== data.data.resume_id)]);
+      }
     } catch (err) {
       setUploadError(err.message);
     } finally {
@@ -341,16 +365,19 @@ export default function Dashboard({ user, token, onLogout, isDark, onToggleTheme
     setJdError('');
     setJdResult(null);
 
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     try {
       const response = await fetch(`${API_URL}/resume/compare`, {
         method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
+        headers,
         body: JSON.stringify({
           job_description: jdText,
-          resume_id: activeAnalysis.resume_id
+          resume_id: activeAnalysis.resume_id,
+          resume_text: activeAnalysis.resume_text || ''
         })
       });
 
@@ -408,6 +435,7 @@ export default function Dashboard({ user, token, onLogout, isDark, onToggleTheme
   }, [activeAnalysis]);
 
   const insight = getTopInsight(activeAnalysis);
+  const displayHistory = token ? history : guestHistory;
 
   return (
     <div>
@@ -418,9 +446,6 @@ export default function Dashboard({ user, token, onLogout, isDark, onToggleTheme
           Resume Analyzer
         </div>
         <div className="nav-user">
-          <span className="nav-username">
-            {user?.name}
-          </span>
           <button 
             onClick={onToggleTheme} 
             className="btn-ghost"
@@ -439,10 +464,37 @@ export default function Dashboard({ user, token, onLogout, isDark, onToggleTheme
           >
             {isDark ? <Sun size={18} /> : <Moon size={18} />}
           </button>
-          <button className="nav-logout" onClick={onLogout} aria-label="Sign out">
-            <LogOut size={14} />
-            Sign Out
-          </button>
+
+          {user ? (
+            <>
+              <span className="nav-username">
+                {user?.name}
+              </span>
+              <button className="nav-logout" onClick={onLogout} aria-label="Sign out">
+                <LogOut size={14} />
+                Sign Out
+              </button>
+            </>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <button 
+                type="button"
+                onClick={() => onOpenAuth && onOpenAuth('login')}
+                className="btn-nav-signin"
+                aria-label="Sign in"
+              >
+                Sign In
+              </button>
+              <button 
+                type="button"
+                onClick={() => onOpenAuth && onOpenAuth('register')}
+                className="btn-nav-getstarted"
+                aria-label="Get started"
+              >
+                Get Started
+              </button>
+            </div>
+          )}
         </div>
       </header>
 
@@ -500,7 +552,7 @@ export default function Dashboard({ user, token, onLogout, isDark, onToggleTheme
               <h3 className="section-title">
                 <History size={15} />
                 Recent Analyses
-                {history.length > 0 && (
+                {displayHistory.length > 0 && (
                   <span style={{
                     marginLeft: 'auto',
                     fontSize: '11px',
@@ -509,16 +561,35 @@ export default function Dashboard({ user, token, onLogout, isDark, onToggleTheme
                     background: 'var(--color-surface-alt)',
                     padding: '1px 8px',
                     borderRadius: 'var(--radius-full)'
-                  }}>{history.length}</span>
+                  }}>{displayHistory.length}</span>
                 )}
               </h3>
-              {history.length === 0 ? (
+
+              {!user && (
+                <div style={{
+                  padding: '10px 12px',
+                  background: 'var(--color-primary-subtle)',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--color-border)',
+                  marginBottom: 'var(--space-3)',
+                  fontSize: '12px',
+                  color: 'var(--color-text-secondary)',
+                  lineHeight: 1.4
+                }}>
+                  <span style={{ fontWeight: 600, color: 'var(--color-text)', display: 'block', marginBottom: '2px' }}>
+                    Guest Mode
+                  </span>
+                  Analyzing as guest. <button type="button" onClick={() => onOpenAuth && onOpenAuth('register')} style={{ background: 'none', border: 'none', color: 'var(--color-primary)', fontWeight: 600, cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>Sign up</button> to save your resume history permanently.
+                </div>
+              )}
+
+              {displayHistory.length === 0 ? (
                 <p style={{ fontSize: '13px', color: 'var(--color-text-muted)', textAlign: 'center', padding: 'var(--space-6) 0' }}>
                   No resumes uploaded yet.
                 </p>
               ) : (
                 <div className="history-list">
-                  {history.map((item) => (
+                  {displayHistory.map((item) => (
                     <div 
                       key={item.resume_id} 
                       className={`history-item ${activeAnalysis?.resume_id === item.resume_id ? 'active' : ''}`}

@@ -270,6 +270,53 @@ a:hover { color: var(--color-primary-hover); }
   box-shadow: none !important;
 }
 
+/* Navbar Action Buttons (matching screenshot) */
+.btn-nav-signin {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 6px 18px;
+  border: 1.5px solid var(--color-text);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+.btn-nav-signin:hover {
+  background: var(--color-surface-alt);
+  transform: translateY(-1px);
+}
+
+.btn-nav-getstarted {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 6px 20px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: #10B981;
+  color: #FFFFFF;
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(16, 185, 129, 0.25);
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+.btn-nav-getstarted:hover {
+  background: #059669;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.35);
+}
+
 /* ═══════════════════════════════════════
    FORMS
    ═══════════════════════════════════════ */

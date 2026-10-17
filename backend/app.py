@@ -2,6 +2,7 @@ import os
 import dotenv
 dotenv.load_dotenv()
 import datetime
+import uuid
 import jwt
 import bcrypt
 
@@ -52,6 +53,25 @@ def token_required(f):
         except Exception as e:
             return jsonify({"message": "Access denied. Invalid token."}), 401
             
+        return f(current_user_id, current_user_email, *args, **kwargs)
+    return decorated
+
+def token_optional(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        current_user_id = None
+        current_user_email = None
+        if 'Authorization' in request.headers:
+            auth_header = request.headers['Authorization']
+            if auth_header.startswith("Bearer "):
+                token = auth_header.split(" ")[1]
+                if token and token not in ["null", "undefined"]:
+                    try:
+                        data = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+                        current_user_id = data.get("user_id")
+                        current_user_email = data.get("email")
+                    except Exception:
+                        pass
         return f(current_user_id, current_user_email, *args, **kwargs)
     return decorated
 
@@ -218,7 +238,7 @@ def google_login():
 
 # Resume Upload & Analysis Routes
 @app.route('/api/resume/upload', methods=['POST'])
-@token_required
+@token_optional
 def upload_resume(current_user_id, current_user_email):
     if 'file' not in request.files:
         return jsonify({"message": "No file part in request. Please upload a file."}), 400
@@ -243,11 +263,29 @@ def upload_resume(current_user_id, current_user_email):
             
         # Run detailed NLP resume analysis
         analysis = analyze_resume_content(parsed)
-        # Store original text for Job matching comparisons
         analysis["resume_text"] = parsed["text"]
         
-        # Save to database log
-        record = db.save_resume_analysis(current_user_id, filename, analysis)
+        # Save to database if user is logged in
+        if current_user_id:
+            record = db.save_resume_analysis(current_user_id, filename, analysis)
+        else:
+            # Guest analysis
+            record = {
+                "resume_id": str(uuid.uuid4()),
+                "user_id": None,
+                "filename": filename,
+                "resume_text": parsed["text"],
+                "score": analysis["score"],
+                "score_breakdown": analysis["score_breakdown"],
+                "ats_score": analysis["ats_score"],
+                "skills": analysis["skills"],
+                "skills_by_category": analysis["skills_by_category"],
+                "ats_checks": analysis["ats_checks"],
+                "match_percentage": analysis.get("match_percentage", 0),
+                "missing_skills": analysis.get("missing_skills", []),
+                "suggestions": analysis["suggestions"],
+                "upload_date": datetime.datetime.utcnow().isoformat()
+            }
         
         # Clean up temp file from server uploads folder
         if os.path.exists(filepath):
@@ -267,31 +305,24 @@ def upload_resume(current_user_id, current_user_email):
 
 # Job matching Route
 @app.route('/api/resume/compare', methods=['POST'])
-@token_required
+@token_optional
 def compare_resume(current_user_id, current_user_email):
     data = request.get_json() or {}
     jd_text = data.get("job_description", "").strip()
     resume_id = data.get("resume_id")
+    resume_text = data.get("resume_text", "")
     
     if not jd_text:
         return jsonify({"message": "Job description text is required for comparison."}), 400
         
-    if not resume_id:
-        return jsonify({"message": "Resume reference ID is required."}), 400
+    if not resume_text and current_user_id and resume_id:
+        resumes = db.get_user_resumes(current_user_id)
+        target_resume = next((r for r in resumes if r["resume_id"] == resume_id), None)
+        if target_resume:
+            resume_text = target_resume.get("resume_text", "")
         
-    # Retrieve resume records for user
-    resumes = db.get_user_resumes(current_user_id)
-    target_resume = next((r for r in resumes if r["resume_id"] == resume_id), None)
-    
-    if not target_resume:
-        return jsonify({"message": "The selected resume was not found in your account."}), 404
-        
-    # Get raw text
-    resume_text = target_resume.get("resume_text", "")
-    if not resume_text:
-        # Fallback to reconstructing from filename or list of skills if missing
-        # But it should be present now.
-        resume_text = " ".join(target_resume.get("skills", []))
+    if not resume_text and not resume_id:
+        return jsonify({"message": "Resume reference or text is required."}), 400
         
     # Calculate JD similarity and matching/missing skills
     match_result = match_job_description(resume_text, jd_text)

@@ -6,6 +6,7 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [token, setToken] = useState(null);
   const [checkingSession, setCheckingSession] = useState(true);
+  const [authModal, setAuthModal] = useState(null); // null, 'login', or 'register'
 
   // Validate session on mount
   useEffect(() => {
@@ -15,7 +16,6 @@ export default function App() {
     if (savedToken && savedUser) {
       try {
         const parsedUser = JSON.parse(savedUser);
-        // Simple expiry verification
         const decoded = JSON.parse(atob(savedToken.split('.')[1]));
         const expTime = decoded.exp * 1000;
         
@@ -23,7 +23,6 @@ export default function App() {
           setToken(savedToken);
           setUser(parsedUser);
         } else {
-          // Token expired, clear storage
           localStorage.removeItem('resume_analyzer_token');
           localStorage.removeItem('resume_analyzer_user');
         }
@@ -54,6 +53,7 @@ export default function App() {
   const handleAuthSuccess = (authUser, authToken) => {
     setUser(authUser);
     setToken(authToken);
+    setAuthModal(null); // close modal on successful auth
   };
 
   const handleLogout = () => {
@@ -74,26 +74,29 @@ export default function App() {
         gap: '1rem'
       }}>
         <div className="loading-spinner" style={{ margin: 0 }} />
-        <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Loading Session...</span>
+        <span style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>Loading Session...</span>
       </div>
     );
   }
 
   return (
     <>
-      {user && token ? (
-        <Dashboard 
-          user={user} 
-          token={token} 
-          onLogout={handleLogout} 
-          isDark={isDark} 
-          onToggleTheme={() => setIsDark(!isDark)} 
-        />
-      ) : (
+      <Dashboard 
+        user={user} 
+        token={token} 
+        onLogout={handleLogout} 
+        isDark={isDark} 
+        onToggleTheme={() => setIsDark(!isDark)}
+        onOpenAuth={(mode = 'login') => setAuthModal(mode)}
+      />
+
+      {authModal && (
         <Auth 
           onAuthSuccess={handleAuthSuccess} 
           isDark={isDark} 
-          onToggleTheme={() => setIsDark(!isDark)} 
+          onToggleTheme={() => setIsDark(!isDark)}
+          initialMode={authModal}
+          onClose={() => setAuthModal(null)}
         />
       )}
     </>
