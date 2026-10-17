@@ -244,5 +244,18 @@ class DatabaseAdapter:
                 resumes.append(r)
             return resumes
 
+    def delete_resume(self, user_id, resume_id):
+        if self.use_mongodb:
+            result = self.mongo_db.resumes.delete_one({"user_id": user_id, "resume_id": resume_id})
+            return result.deleted_count > 0
+        else:
+            conn = sqlite3.connect(self.sqlite_path)
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM resumes WHERE user_id = ? AND resume_id = ?", (user_id, resume_id))
+            affected = cursor.rowcount
+            conn.commit()
+            conn.close()
+            return affected > 0
+
 # Global DB Instance
 db = DatabaseAdapter()

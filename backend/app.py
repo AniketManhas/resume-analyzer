@@ -320,6 +320,19 @@ def get_history(current_user_id, current_user_email):
     except Exception as e:
         return jsonify({"message": f"Failed to retrieve history: {str(e)}"}), 500
 
+# Delete Resume Route
+@app.route('/api/resume/<resume_id>', methods=['DELETE'])
+@token_required
+def delete_resume(current_user_id, current_user_email, resume_id):
+    try:
+        success = db.delete_resume(current_user_id, resume_id)
+        if success:
+            return jsonify({"message": "Resume deleted successfully"}), 200
+        else:
+            return jsonify({"message": "Resume not found or already deleted"}), 404
+    except Exception as e:
+        return jsonify({"message": f"Failed to delete resume: {str(e)}"}), 500
+
 if __name__ == '__main__':
     # Running Flask Server locally on port 5000
     app.run(host='0.0.0.0', port=5000, debug=True)

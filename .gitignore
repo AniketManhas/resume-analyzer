@@ -6,3 +6,4 @@ __pycache__/
 backend/uploads/
 node_modules/
 dist/
+*.db

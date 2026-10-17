@@ -3,7 +3,6 @@ import { Mail, Lock, User, ArrowRight, ShieldCheck, Sun, Moon } from 'lucide-rea
 import { signInWithRedirect, getRedirectResult } from 'firebase/auth';
 import { auth, googleProvider } from '../firebase';
 
-
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 export default function Auth({ onAuthSuccess, isDark, onToggleTheme }) {
@@ -35,14 +34,12 @@ export default function Auth({ onAuthSuccess, isDark, onToggleTheme }) {
         throw new Error(data.message || 'Authentication failed. Please try again.');
       }
 
-      // Store JWT token and user info
       localStorage.setItem('resume_analyzer_token', data.token);
       localStorage.setItem('resume_analyzer_user', JSON.stringify(data.user));
       
-      // Call parent success trigger
       onAuthSuccess(data.user, data.token);
     } catch (err) {
-      setError(`Failed to connect to backend at: ${API_URL}${endpoint}. Details: ${err.message}`);
+      setError(`Failed to connect to backend: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -70,16 +67,14 @@ export default function Auth({ onAuthSuccess, isDark, onToggleTheme }) {
             throw new Error(data.message || 'Google authentication failed.');
           }
 
-          // Store JWT token and user info
           localStorage.setItem('resume_analyzer_token', data.token);
           localStorage.setItem('resume_analyzer_user', JSON.stringify(data.user));
-
-          // Call parent success trigger
+          
           onAuthSuccess(data.user, data.token);
         }
       } catch (err) {
         console.error("Redirect auth error:", err);
-        setError(`Failed to connect to backend at: ${API_URL}/auth/google. Details: ${err.message}`);
+        setError(`Failed to connect to backend with Google: ${err.message}`);
       } finally {
         setLoading(false);
       }
@@ -100,58 +95,51 @@ export default function Auth({ onAuthSuccess, isDark, onToggleTheme }) {
 
   return (
     <div className="auth-container">
-      <div className="glass-panel auth-card" style={{ position: 'relative' }}>
+      <div className="card auth-card" style={{ position: 'relative' }}>
         <button
           onClick={onToggleTheme}
           style={{
             position: 'absolute',
-            top: '1rem',
-            right: '1rem',
+            top: 'var(--space-4)',
+            right: 'var(--space-4)',
             background: 'none',
             border: 'none',
-            color: 'var(--text-muted)',
+            color: 'var(--color-text-secondary)',
             cursor: 'pointer',
-            padding: '0.4rem',
+            padding: '6px',
             borderRadius: '50%',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            transition: 'var(--transition-smooth)'
+            transition: 'color var(--transition-fast)'
           }}
           title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+          aria-label={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
         >
-          {isDark ? <Sun size={16} /> : <Moon size={16} />}
+          {isDark ? <Sun size={18} /> : <Moon size={18} />}
         </button>
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.25rem' }}>
+
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 'var(--space-4)' }}>
           <div style={{
-            background: 'var(--secondary-glow)',
-            color: 'var(--secondary)',
-            padding: '0.75rem',
-            borderRadius: '50%',
+            background: 'var(--color-primary-subtle)',
+            color: 'var(--color-primary)',
+            padding: '12px',
+            borderRadius: 'var(--radius-full)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center'
           }}>
-            <ShieldCheck size={36} />
+            <ShieldCheck size={32} />
           </div>
         </div>
 
-        <h2 className="auth-title">Resume Analyzer</h2>
+        <h1 className="auth-title">Resume Analyzer</h1>
         <p className="auth-subtitle">
-          {isLogin ? 'Sign in to analyze your resume' : 'Create an account to get started'}
+          {isLogin ? 'Sign in to analyze your resume and get ATS feedback' : 'Create an account to start optimizing your resume'}
         </p>
 
         {error && (
-          <div style={{
-            background: 'var(--error-glow)',
-            border: '1px solid var(--error)',
-            color: '#f87171',
-            padding: '0.75rem 1rem',
-            borderRadius: 'var(--radius-sm)',
-            fontSize: '0.85rem',
-            marginBottom: '1.5rem',
-            textAlign: 'center'
-          }}>
+          <div className="alert-error" style={{ marginBottom: 'var(--space-4)' }}>
             {error}
           </div>
         )}
@@ -166,7 +154,7 @@ export default function Auth({ onAuthSuccess, isDark, onToggleTheme }) {
                   left: '12px',
                   top: '50%',
                   transform: 'translateY(-50%)',
-                  color: 'var(--text-muted)'
+                  color: 'var(--color-text-muted)'
                 }} />
                 <input
                   id="name-input"
@@ -190,7 +178,7 @@ export default function Auth({ onAuthSuccess, isDark, onToggleTheme }) {
                 left: '12px',
                 top: '50%',
                 transform: 'translateY(-50%)',
-                color: 'var(--text-muted)'
+                color: 'var(--color-text-muted)'
               }} />
               <input
                 id="email-input"
@@ -213,7 +201,7 @@ export default function Auth({ onAuthSuccess, isDark, onToggleTheme }) {
                 left: '12px',
                 top: '50%',
                 transform: 'translateY(-50%)',
-                color: 'var(--text-muted)'
+                color: 'var(--color-text-muted)'
               }} />
               <input
                 id="password-input"
@@ -232,7 +220,7 @@ export default function Auth({ onAuthSuccess, isDark, onToggleTheme }) {
             type="submit"
             className={`btn btn-primary ${loading ? 'btn-disabled' : ''}`}
             disabled={loading}
-            style={{ marginTop: '1rem', width: '100%' }}
+            style={{ width: '100%', marginTop: 'var(--space-2)' }}
           >
             {loading ? 'Processing...' : isLogin ? 'Sign In' : 'Create Account'}
             {!loading && <ArrowRight size={16} />}
@@ -242,13 +230,13 @@ export default function Auth({ onAuthSuccess, isDark, onToggleTheme }) {
         <div style={{
           display: 'flex',
           alignItems: 'center',
-          margin: '1.25rem 0 1rem 0',
-          color: 'var(--text-muted)',
-          fontSize: '0.8rem'
+          margin: 'var(--space-4) 0',
+          color: 'var(--color-text-muted)',
+          fontSize: '12px'
         }}>
-          <span style={{ flex: 1, height: '1px', background: 'var(--border-light)' }}></span>
+          <span style={{ flex: 1, height: '1px', background: 'var(--color-border)' }}></span>
           <span style={{ padding: '0 10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>or</span>
-          <span style={{ flex: 1, height: '1px', background: 'var(--border-light)' }}></span>
+          <span style={{ flex: 1, height: '1px', background: 'var(--color-border)' }}></span>
         </div>
 
         <button
@@ -256,15 +244,9 @@ export default function Auth({ onAuthSuccess, isDark, onToggleTheme }) {
           onClick={handleGoogleSignIn}
           disabled={loading}
           className={`btn btn-secondary ${loading ? 'btn-disabled' : ''}`}
-          style={{ 
-            width: '100%', 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center',
-            gap: '0.5rem'
-          }}
+          style={{ width: '100%' }}
         >
-          <svg width="18" height="18" viewBox="0 0 18 18" style={{ marginRight: '4px' }}>
+          <svg width="18" height="18" viewBox="0 0 18 18" style={{ marginRight: '6px' }}>
             <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" fill="#4285F4"/>
             <path d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.938 5.48 18 9 18z" fill="#34A853"/>
             <path d="M3.964 10.707c-.18-.54-.282-1.117-.282-1.707s.102-1.167.282-1.707V4.961H.957C.347 6.173 0 7.549 0 9s.347 2.827.957 4.039l3.007-2.332z" fill="#FBBC05"/>
@@ -274,10 +256,10 @@ export default function Auth({ onAuthSuccess, isDark, onToggleTheme }) {
         </button>
 
         <div style={{
-          marginTop: '1.5rem',
+          marginTop: 'var(--space-5)',
           textAlign: 'center',
-          fontSize: '0.85rem',
-          color: 'var(--text-muted)'
+          fontSize: '13px',
+          color: 'var(--color-text-secondary)'
         }}>
           {isLogin ? "Don't have an account? " : "Already have an account? "}
           <button
@@ -289,10 +271,12 @@ export default function Auth({ onAuthSuccess, isDark, onToggleTheme }) {
             style={{
               background: 'none',
               border: 'none',
-              color: 'var(--secondary)',
+              color: 'var(--color-primary)',
               cursor: 'pointer',
               fontWeight: '600',
-              padding: '0 4px'
+              padding: '0 4px',
+              fontFamily: 'inherit',
+              fontSize: 'inherit'
             }}
           >
             {isLogin ? 'Sign Up' : 'Log In'}
